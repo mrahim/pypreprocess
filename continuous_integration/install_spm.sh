@@ -9,6 +9,9 @@ chmod 755 spm8/run_spm8.sh
 
 wget http://www.fil.ion.ucl.ac.uk/spm/download/restricted/utopia/MCR/glnxa64/MCRInstaller.bin
 chmod 755 MCRInstaller.bin
+
+# Add MCRInstaller.bin dependencies first
+sudo apt-get install -y libxp6 libxpm4 libxmu6 libxt6 bc
 ./MCRInstaller.bin -P bean421.installLocation="mcr" -silent
 
 cat <<EOF > $SPM_ROOT_DIR/spm8.sh
