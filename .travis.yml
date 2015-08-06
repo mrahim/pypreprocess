@@ -12,6 +12,7 @@ before_install:
     - sudo apt-get install -qq python-pip
     - pip install "nilearn>=0.1.3"
     - pip install coverage coveralls
+    - source continuous_integration/setup_spm.sh
 
 install:
     - python setup.py install
