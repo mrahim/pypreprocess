@@ -14,6 +14,10 @@ import nibabel
 from nipy.modalities.fmri.experimental_paradigm import BlockParadigm
 from nipy.modalities.fmri.design_matrix import make_dmtx
 from nipy.modalities.fmri.glm import FMRILinearModel
+
+# Hack to set the backend to Agg ...
+from nilearn import plotting
+
 from pypreprocess.nipype_preproc_spm_utils import do_subjects_preproc
 from pypreprocess.datasets import fetch_spm_auditory
 from pypreprocess.reporting.glm_reporter import generate_subject_stats_report
