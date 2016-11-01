@@ -525,10 +525,10 @@ def _do_subject_coregister(subject_data, reslice=False, spm_dir=None,
     return subject_data.sanitize()
 
 
-def _do_subject_segment(subject_data, output_modulated_tpms=True, spm_dir=None,
-                        matlab_exec=None, spm_mcr=None, normalize=False,
-                        caching=True, report=True, software="spm",
-                        hardlink_output=True):
+def _do_subject_oldsegment(subject_data, output_modulated_tpms=True,
+                           spm_dir=None, matlab_exec=None, spm_mcr=None,
+                           normalize=False, caching=True, report=True,
+                           software="spm", hardlink_output=True):
     """
     Wrapper for running spm.Segment with optional reporting.
 
@@ -651,6 +651,141 @@ def _do_subject_segment(subject_data, output_modulated_tpms=True, spm_dir=None,
         subject_data.mwgm = segment_result.outputs.modulated_gm_image
         subject_data.mwwm = segment_result.outputs.modulated_wm_image
         subject_data.mwcsf = segment_result.outputs.modulated_csf_image
+
+    # commit output files
+    if hardlink_output:
+        subject_data.hardlink_output_files()
+
+    # generate segmentation thumbs
+    if report:
+        subject_data.generate_segmentation_thumbnails()
+
+    return subject_data.sanitize()
+
+
+def _do_subject_segment(subject_data, output_modulated_tpms=True,
+                        spm_dir=None, matlab_exec=None, spm_mcr=None,
+                        normalize=False, caching=True, report=True,
+                        software="spm", hardlink_output=True):
+    """
+    Wrapper for running spm.Segment with optional reporting.
+
+    If subject_data has a `results_gallery` attribute, then QA thumbnails will
+    be commited after this node is executed
+
+    Parameters
+    -----------
+    subject_data: `SubjectData` object
+        subject data whose anatomical image (subject_data.anat) is to be
+        segmented
+
+    output_modulated_tpms: bool, optional (default False)
+        if set, then modulated TPMS will be produced (alongside unmodulated
+        TPMs); this can be useful for VBM
+
+    caching: bool, optional (default True)
+        if true, then caching will be enabled
+
+    normalize: bool, optional (default False)
+        flag indicating whether warped brain compartments (gm, wm, csf) are to
+        be generated (necessary if the caller wishes the brain later)
+
+    report: bool, optional (default True)
+       flag controlling whether post-preprocessing reports should be generated
+
+    Returns
+    -------
+    subject_data: `SubjectData` object
+        preprocessed subject_data
+
+        New Attributes
+        ==============
+        subject_data.nipype_results['segment']: Nipype output object
+            (raw) result of running spm.Segment
+
+        subject_data.gm: string
+            path to subject's segmented gray matter image in native space
+
+        subject_data.wm: string
+            path to subject's segmented white matter image in native space
+
+        subject_data.csf: string
+            path to subject's CSF image in native space
+
+        if normalize then the following additional data fiels are
+        populated:
+
+        subject_data.wgm: string
+            path to subject's segmented gray matter image in standard space
+
+        subject_data.wwm: string
+            path to subject's segmented white matter image in standard space
+
+        subject_data.wcsf: string
+            path to subject's CSF image in standard space
+
+
+    Notes
+    -----
+    Input subject_data is modified.
+
+    """
+
+    # sanitize software choice
+    software = software.lower()
+    if software != "spm":
+        raise NotImplementedError("Only SPM is supported; got '%s'" % software)
+
+    # configure SPM back-end
+    _configure_backends(spm_dir=spm_dir, matlab_exec=matlab_exec,
+                        spm_mcr=spm_mcr)
+    assert not SPM_DIR is None and os.path.isdir(SPM_DIR), (
+        "SPM_DIR '%s' doesn't exist; you need to export it!" % SPM_DIR)
+
+    # sanitize subject_data (do things like .nii.gz -> .nii conversion, etc.)
+    subject_data.sanitize(niigz2nii=(software == "spm"))
+
+    # prepare for smart caching
+    if caching:
+        cache_dir = os.path.join(subject_data.scratch, 'cache_dir')
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+        segment = NipypeMemory(base_dir=cache_dir).cache(spm.NewSegment)
+    else:
+        segment = spm.NewSegment().run
+
+    # configure node
+    if not normalize:
+        gm_output_type = [False, False, True]
+        wm_output_type = [False, False, True]
+        csf_output_type = [False, False, True]
+    else:
+        gm_output_type = [output_modulated_tpms, True, True]
+        wm_output_type = [output_modulated_tpms, True, True]
+        csf_output_type = [output_modulated_tpms, True, True]
+    # run node
+    segment_result = newsegment(
+        channel_files=subject_data.anat,
+        tissues=TISSUES,
+        ignore_exception=False
+        )
+
+    # failed node
+    subject_data.nipype_results['segment'] = segment_result
+    if segment_result.outputs is None:
+        subject_data.failed = True
+        return subject_data
+
+    # collect output
+    subject_data.parameter_file = segment_result.outputs.transformation_mat
+    subject_data.nipype_results['segment'] = segment_result
+    subject_data.gm = segment_result.outputs.native_class_images[0]
+    subject_data.wm = segment_result.outputs.native_class_images[1]
+    subject_data.csf = segment_result.outputs.native_class_images[2]
+    if normalize:
+        subject_data.mwgm = segment_result.outputs.modulated_class_images[0]
+        subject_data.mwwm = segment_result.outputs.modulated_class_images[1]
+        subject_data.mwcsf = segment_result.outputs.modulated_class_images[2]
 
     # commit output files
     if hardlink_output:
