@@ -764,7 +764,7 @@ def _do_subject_segment(subject_data, output_modulated_tpms=True,
         wm_output_type = [output_modulated_tpms, True, True]
         csf_output_type = [output_modulated_tpms, True, True]
     # run node
-    segment_result = newsegment(
+    segment_result = segment(
         channel_files=subject_data.anat,
         tissues=TISSUES,
         ignore_exception=False
