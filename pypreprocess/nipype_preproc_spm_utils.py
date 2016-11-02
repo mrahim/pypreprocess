@@ -783,9 +783,9 @@ def _do_subject_segment(subject_data, output_modulated_tpms=True,
     subject_data.wm = segment_result.outputs.native_class_images[1]
     subject_data.csf = segment_result.outputs.native_class_images[2]
     if normalize:
-        subject_data.mwgm = segment_result.outputs.modulated_class_images[0]
-        subject_data.mwwm = segment_result.outputs.modulated_class_images[1]
-        subject_data.mwcsf = segment_result.outputs.modulated_class_images[2]
+        subject_data.mwgm = segment_result.outputs.native_class_images[0]
+        subject_data.mwwm = segment_result.outputs.native_class_images[1]
+        subject_data.mwcsf = segment_result.outputs.native_class_images[2]
 
     # commit output files
     if hardlink_output:
