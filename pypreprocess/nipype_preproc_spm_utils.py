@@ -74,11 +74,11 @@ def _configure_backends(spm_dir=None, matlab_exec=None, spm_mcr=None,
 
             # prepare template TPMs
             tissue1 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 1),
-                       2, (True, True), (False, False))
+                       2, (True, True), (False, True))
             tissue2 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 2),
-                       2, (True, True), (False, False))
+                       2, (True, True), (False, True))
             tissue3 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 3),
-                       2, (True, False), (False, False))
+                       2, (True, False), (False, True))
             tissue4 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 4),
                        3, (False, False), (False, False))
             tissue5 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 5),
@@ -777,15 +777,16 @@ def _do_subject_segment(subject_data, output_modulated_tpms=True,
         return subject_data
 
     # collect output
-    subject_data.parameter_file = segment_result.outputs.transformation_mat
+    subject_data.parameter_file = segment_result.outputs.transformation_mat[0]
     subject_data.nipype_results['segment'] = segment_result
-    subject_data.gm = segment_result.outputs.native_class_images[0]
-    subject_data.wm = segment_result.outputs.native_class_images[1]
-    subject_data.csf = segment_result.outputs.native_class_images[2]
+
+    subject_data.gm = segment_result.outputs.native_class_images[0][0]
+    subject_data.wm = segment_result.outputs.native_class_images[1][0]
+    subject_data.csf = segment_result.outputs.native_class_images[2][0]
     if normalize:
-        subject_data.mwgm = segment_result.outputs.native_class_images[0]
-        subject_data.mwwm = segment_result.outputs.native_class_images[1]
-        subject_data.mwcsf = segment_result.outputs.native_class_images[2]
+        subject_data.mwgm = segment_result.outputs.modulated_class_images[0][0]
+        subject_data.mwwm = segment_result.outputs.modulated_class_images[1][0]
+        subject_data.mwcsf = segment_result.outputs.modulated_class_images[2][0]
 
     # commit output files
     if hardlink_output:
@@ -872,6 +873,7 @@ def _do_subject_normalize(subject_data, fwhm=0., anat_fwhm=0., caching=True,
     else: normalize = spm.Normalize().run
 
     segmented = 'segment' in subject_data.nipype_results
+    segmented = False
 
     # configure node for normalization
     if not segmented:
@@ -984,7 +986,7 @@ def _do_subject_normalize(subject_data, fwhm=0., anat_fwhm=0., caching=True,
 
     # commit output files
     if hardlink_output: subject_data.hardlink_output_files()
-
+    segmented = False
     return subject_data.sanitize()
 
 
