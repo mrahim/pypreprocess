@@ -74,11 +74,11 @@ def _configure_backends(spm_dir=None, matlab_exec=None, spm_mcr=None,
 
             # prepare template TPMs
             tissue1 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 1),
-                       2, (True, True), (False, True))
+                       2, (True, True), (True, True))
             tissue2 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 2),
-                       2, (True, True), (False, True))
+                       2, (True, True), (True, True))
             tissue3 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 3),
-                       2, (True, False), (False, True))
+                       2, (True, True), (True, True))
             tissue4 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 4),
                        3, (False, False), (False, False))
             tissue5 = ((os.path.join(SPM_DIR, tissue_path, 'TPM.nii'), 5),
@@ -766,6 +766,7 @@ def _do_subject_segment(subject_data, output_modulated_tpms=True,
     # run node
     segment_result = segment(
         channel_files=subject_data.anat,
+        write_deformation_fields=[True, True],
         tissues=TISSUES,
         ignore_exception=False
         )
@@ -778,7 +779,12 @@ def _do_subject_segment(subject_data, output_modulated_tpms=True,
 
     # collect output
     subject_data.parameter_file = segment_result.outputs.transformation_mat[0]
+    subject_data.deformation_file = segment_result.outputs.forward_deformation_field
     subject_data.nipype_results['segment'] = segment_result
+
+    # XXX added to avoid normlizing on the input folder
+    # _, fname = os.path.split(subject_data.anat)
+    # subject_data.anat = os.path.join(subject_data.anat_outpt_dir, fname)
 
     subject_data.gm = segment_result.outputs.native_class_images[0][0]
     subject_data.wm = segment_result.outputs.native_class_images[1][0]
@@ -851,6 +857,10 @@ def _do_subject_normalize(subject_data, fwhm=0., anat_fwhm=0., caching=True,
 
     """
 
+    print('[NORMALIZATION] Normalization in progress')
+    print(subject_data)
+    print('[NORMALIZATION] Normalization in progress')
+
     # sanitize software choice
     software = software.lower()
     if software != "spm":
@@ -869,11 +879,10 @@ def _do_subject_normalize(subject_data, fwhm=0., anat_fwhm=0., caching=True,
     if caching:
         cache_dir = os.path.join(subject_data.scratch, 'cache_dir')
         if not os.path.exists(cache_dir): os.makedirs(cache_dir)
-        normalize = NipypeMemory(base_dir=cache_dir).cache(spm.Normalize)
-    else: normalize = spm.Normalize().run
+        normalize12 = NipypeMemory(base_dir=cache_dir).cache(spm.Normalize12)
+    else: normalize12 = spm.Normalize12().run
 
     segmented = 'segment' in subject_data.nipype_results
-    segmented = False
 
     # configure node for normalization
     if not segmented:
@@ -887,6 +896,8 @@ def _do_subject_normalize(subject_data, fwhm=0., anat_fwhm=0., caching=True,
     else:
         parameter_file = subject_data.nipype_results[
             'segment'].outputs.transformation_mat
+        deformation_file = subject_data.nipype_results[
+            'segment'].outputs.forward_deformation_field
 
     subject_data.parameter_file = parameter_file
 
@@ -907,13 +918,24 @@ def _do_subject_normalize(subject_data, fwhm=0., anat_fwhm=0., caching=True,
                 else: write_voxel_sizes = anat_write_voxel_sizes
                 apply_to_files = subject_data.anat
 
-            # run node
-            normalize_result = normalize(
-                parameter_file=parameter_file,
+            # replace by normalize12
+            # normalize12 = spm.Normalize12().run
+            print('[DEFORMATION FILE]', deformation_file)
+            print('[APPLY TO FILE]', apply_to_files)
+            normalize_result = normalize12(
+                deformation_file=deformation_file,
                 apply_to_files=apply_to_files,
                 write_voxel_sizes=list(write_voxel_sizes),
-                # write_bounding_box=[[-78, -112, -50], [78, 76, 85]],
                 write_interp=1, jobtype='write', ignore_exception=False)
+            print('[RESULTS]', normalize_result.outputs)
+
+            # # run node
+            # normalize_result = normalize(
+            #     parameter_file=parameter_file,
+            #     apply_to_files=apply_to_files,
+            #     write_voxel_sizes=list(write_voxel_sizes),
+            #     # write_bounding_box=[[-78, -112, -50], [78, 76, 85]],
+            #     write_interp=1, jobtype='write', ignore_exception=False)
 
             # failed node ?
             if normalize_result.outputs is None:
@@ -939,7 +961,7 @@ def _do_subject_normalize(subject_data, fwhm=0., anat_fwhm=0., caching=True,
             normalize_result = normalize(
                 parameter_file=parameter_file,
                 apply_to_files=apply_to_files,
-                write_bounding_box=[[-78, -112, -50], [78, 76, 85]],
+                # write_bounding_box=[[-78, -112, -50], [78, 76, 85]],
                 write_voxel_sizes=list(write_voxel_sizes),
                 write_wrap=[0, 0, 0],
                 write_interp=1,
@@ -986,7 +1008,6 @@ def _do_subject_normalize(subject_data, fwhm=0., anat_fwhm=0., caching=True,
 
     # commit output files
     if hardlink_output: subject_data.hardlink_output_files()
-    segmented = False
     return subject_data.sanitize()
 
 

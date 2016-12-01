@@ -407,6 +407,8 @@ class SubjectData(object):
         """
         # sanitize output_dir
         self._sanitize_output_dirs()
+        # XXX sanitize scratch dir
+        self._sanitize_scratch_dirs()
 
         # sanitize func
         if isinstance(self.func, basestring):
